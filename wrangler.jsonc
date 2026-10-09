@@ -1,9 +1,9 @@
 {
-  "name": "chatgptforstudents",
+  "name": "chatgpt4students",
   "main": "worker.js",
   "compatibility_date": "2026-10-01",
   "ai": { "binding": "AI" },
   "kv_namespaces": [
-    { "binding": "CHATS", "id": "edd8d1f9d0654586af5c8a2a32e4cba7" }
+    { "binding": "CHATS", "id": "PASTE_YOUR_KV_NAMESPACE_ID_HERE" }
   ]
 }
