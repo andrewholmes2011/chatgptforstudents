@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AP Tutor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f4f7f2;--ink:#17261f;--green:#1f6b4f;--chalk:#fff;--mark:#ffe066;--line:#cdd9d0}
+*{box-sizing:border-box}
+body{margin:0;font:17px/1.55 "Atkinson Hyperlegible",system-ui,sans-serif;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;height:100vh}
+header{background:var(--ink);color:var(--paper);padding:.8rem 1rem;display:flex;gap:1rem;align-items:baseline;flex-wrap:wrap}
+header h1{font-size:1.25rem;margin:0}
+header span{font-size:.9rem;opacity:.8}
+#notice{background:var(--mark);padding:.4rem 1rem;font-size:.9rem}
+#log{flex:1;overflow-y:auto;padding:1rem;max-width:760px;width:100%;margin:0 auto}
+.m{padding:.6rem .9rem;margin:.5rem 0;border-radius:6px;white-space:pre-wrap;max-width:85%}
+.u{background:var(--green);color:#fff;margin-left:auto}
+.b{background:var(--chalk);border:1px solid var(--line)}
+.t{background:#fff8d6;border:1px dashed #b39b1c;max-width:100%}
+form{display:flex;gap:.5rem;padding:.8rem 1rem;max-width:760px;width:100%;margin:0 auto}
+input,button{font:inherit;padding:.6rem .8rem;border-radius:6px;border:1px solid var(--line)}
+input{flex:1;min-width:0}
+button{background:var(--green);color:#fff;border-color:var(--green);cursor:pointer}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--mark);outline-offset:2px}
+#gate{max-width:420px;margin:15vh auto;padding:1rem;text-align:center}
+details{margin-left:auto;font-size:.9rem}
+details form{padding:.5rem 0}
+summary{cursor:pointer}
+.hide{display:none!important}
+@media (prefers-reduced-motion:no-preference){.m{animation:in .15s ease-out}@keyframes in{from{opacity:0}}}
+</style>
+</head>
+<body>
+<header>
+  <h1>AP Tutor</h1><span>Help with any class</span>
+  <details>
+    <summary id="tstate">Teacher login</summary>
+    <form id="tlogin">
+      <input id="tu" placeholder="Username" autocomplete="username">
+      <input id="tp" type="password" placeholder="Passcode" autocomplete="current-password">
+      <button>Log in</button>
+    </form>
+  </details>
+</header>
+<div id="notice">Your chats are saved and your teacher can read them. I explain how to solve things; I don't hand over answers.</div>
+
+<div id="gate">
+  <h2>Who's studying?</h2>
+  <form id="nameForm" style="flex-direction:column"><input id="nm" placeholder="First and last name" maxlength="40" required><input id="sj" placeholder="Class (optional, like Algebra 2 or Biology)" maxlength="60"><button>Start</button></form>
+</div>
+
+<main id="app" class="hide" style="display:contents">
+  <div id="log" aria-live="polite"></div>
+  <form id="chat"><input id="q" placeholder="Ask how to do something…" autocomplete="off" required><button>Send</button></form>
+</main>
+
+<script>
+const API = "https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev"; // <- paste your Worker URL
+const $ = (id) => document.getElementById(id);
+let student = "", subject = "", creds = null, hist = [];
+
+function add(text, cls){
+  const d = document.createElement("div");
+  d.className = "m " + cls; d.textContent = text;
+  $("log").appendChild(d); $("log").scrollTop = $("log").scrollHeight;
+  return d;
+}
+function headers(){
+  const h = {"Content-Type":"application/json"};
+  if (creds){ h["X-User"] = creds.u; h["X-Pass"] = creds.p; }
+  return h;
+}
+async function post(path, body){
+  const r = await fetch(API + path, {method:"POST", headers:headers(), body:JSON.stringify(body)});
+  return {ok:r.ok, data: await r.json().catch(()=>({}))};
+}
+function start(n){
+  student = n; $("gate").classList.add("hide"); $("app").classList.remove("hide");
+  add(creds ? "Teacher mode is on. Rules are off, and ?check Student Name shows a student's chats." :
+      "Hi " + n.split(" ")[0] + "! What are you working on" + (subject ? " in " + subject : "") + "? I'll help you figure out how to do it.", "b");
+}
+
+$("nameForm").onsubmit = (e) => { e.preventDefault(); subject = $("sj").value.trim(); start($("nm").value.trim()); };
+
+$("tlogin").onsubmit = async (e) => {
+  e.preventDefault();
+  const c = {u:$("tu").value, p:$("tp").value};
+  creds = c;
+  const r = await post("/login", {});
+  if (r.ok){
+    $("tstate").textContent = "Teacher mode on";
+    $("tlogin").classList.add("hide");
+    if (!student) start("Teacher"); else add("Teacher mode is on.", "t");
+  } else { creds = null; $("tstate").textContent = "Wrong username or passcode, try again"; }
+};
+
+$("chat").onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $("q").value.trim(); if (!text) return; $("q").value = "";
+  add(text, "u");
+
+  if (text.toLowerCase().startsWith("?check")){
+    const who = text.slice(6).trim();
+    if (!creds){ add("?check is for teachers. Log in at the top right first.", "b"); return; }
+    if (!who){ add("Use it like this: ?check Jane Smith", "t"); return; }
+    const r = await post("/check", {name: who});
+    if (!r.ok){ add(r.data.error || "Check failed.", "t"); return; }
+    if (!r.data.chats.length){ add("No chats found for " + who + ".", "t"); return; }
+    add("Chats for " + who + " (" + r.data.chats.length + "):", "t");
+    r.data.chats.forEach(c => add(new Date(c.t).toLocaleString() + "\nStudent: " + c.q + "\nTutor: " + c.a, "t"));
+    return;
+  }
+
+  hist.push({role:"user", content:text});
+  const wait = add("Thinking…", "b");
+  try{
+    const r = await post("/chat", {name: student, subject, messages:hist});
+    wait.textContent = r.data.reply || r.data.error || "Something went wrong. Try again.";
+    if (r.data.reply) hist.push({role:"assistant", content:r.data.reply});
+  }catch{ wait.textContent = "Can't reach the tutor right now. Try again in a minute."; }
+};
+</script>
+</body>
+</html>

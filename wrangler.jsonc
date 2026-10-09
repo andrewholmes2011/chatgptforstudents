@@ -1,0 +1,9 @@
+{
+  "name": "ap-tutor",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "ai": { "binding": "AI" },
+  "kv_namespaces": [
+    { "binding": "CHATS", "id": "PASTE_YOUR_KV_NAMESPACE_ID_HERE" }
+  ]
+}
